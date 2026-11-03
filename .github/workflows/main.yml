@@ -1,0 +1,71 @@
+name: Build AgriCoach APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le projet
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Extraire le ZIP
+        run: |
+          ZIP=$(find . -maxdepth 2 -iname "*.zip" -type f | head -n 1)
+          if [ -z "$ZIP" ]; then
+            echo "Aucun fichier ZIP trouve"
+            exit 1
+          fi
+          unzip -q "$ZIP" -d extracted
+          PACKAGE=$(find extracted -name package.json -not -path "/node_modules/" | head -n 1)
+          if [ -z "$PACKAGE" ]; then
+            echo "package.json introuvable"
+            exit 1
+          fi
+          echo "APP_DIR=$(dirname "$PACKAGE")" >> $GITHUB_ENV
+
+      - name: Installer les dependances
+        run: |
+          cd "$APP_DIR"
+          npm install
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Construire l'application
+        run: |
+          cd "$APP_DIR"
+          npm run build
+
+      - name: Ajouter Android
+        run: |
+          cd "$APP_DIR"
+          npx cap init AgriCoach com.agricoach.app --web-dir dist
+          npx cap add android
+          npx cap sync android
+
+      - name: Installer Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Installer Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Construire APK
+        run: |
+          cd "$APP_DIR/android"
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Recuperer APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AgriCoach-APK
+          path: "${{ env.APP_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
