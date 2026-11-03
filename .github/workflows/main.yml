@@ -18,44 +18,25 @@ jobs:
 
       - name: Extraire le projet
         run: |
-          ZIP=$(find . -maxdepth 2 -iname "*.zip" -type f | head -n 1)
+          ZIP=$(find . -type f -iname ".zip" -not -path "./.git/" | head -n 1)
+
           if [ -z "$ZIP" ]; then
             echo "ZIP introuvable"
             exit 1
           fi
+
           unzip -q "$ZIP" -d extracted
-          PACKAGE=$(find extracted -name package.json -not -path "/node_modules/" | head -n 1)
+
+          PACKAGE=$(find extracted -type d -name node_modules -prune -o -type f -name package.json -print | head -n 1)
+
           if [ -z "$PACKAGE" ]; then
             echo "package.json introuvable"
             exit 1
           fi
+
           echo "APP_DIR=$(dirname "$PACKAGE")" >> "$GITHUB_ENV"
 
-      - name: Installer les dependances
-        run: |
-          cd "$APP_DIR"
-          npm install --legacy-peer-deps
-          npm install @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps
-
-      - name: Construire le projet
-        run: |
-          cd "$APP_DIR"
-          npm run build
-
-      - name: Creer la version Android
-        run: |
-          cd "$APP_DIR"
-          rm -f capacitor.config.ts capacitor.config.js capacitor.config.json
-          cat > capacitor.config.json <<'EOF'
-          {
-            "appId": "com.agricoach.app",
-            "appName": "AgriCoach",
-            "webDir": "dist"
-          }
-          EOF
-          npx cap add android
-          npx cap sync android
-      - name: Configurer Java
+      - name: Installer Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -63,6 +44,35 @@ jobs:
 
       - name: Configurer Android
         uses: android-actions/setup-android@v3
+
+      - name: Installer les dependances
+        run: |
+          cd "$APP_DIR"
+          npm install --legacy-peer-deps
+          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7 --legacy-peer-deps
+
+      - name: Construire le projet
+        run: |
+          cd "$APP_DIR"
+          npm run build
+          test -f dist/index.html
+
+      - name: Creer la version Android
+        run: |
+          cd "$APP_DIR"
+
+          rm -f capacitor.config.ts capacitor.config.js capacitor.config.json
+
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.agricoach.app",
+            "appName": "AgriCoach",
+            "webDir": "dist"
+          }
+          EOF
+
+          npx cap add android
+          npx cap sync android
 
       - name: Compiler APK
         run: |
@@ -75,3 +85,4 @@ jobs:
         with:
           name: AgriCoach-APK
           path: "**/android/app/build/outputs/apk/debug/app-debug.apk"
+          if-no-files-found: error
