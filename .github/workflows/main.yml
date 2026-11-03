@@ -45,10 +45,16 @@ jobs:
       - name: Creer la version Android
         run: |
           cd "$APP_DIR"
-          npx cap init AgriCoach com.agricoach.app --web-dir dist
+          rm -f capacitor.config.ts capacitor.config.js capacitor.config.json
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.agricoach.app",
+            "appName": "AgriCoach",
+            "webDir": "dist"
+          }
+          EOF
           npx cap add android
           npx cap sync android
-
       - name: Configurer Java
         uses: actions/setup-java@v4
         with:
